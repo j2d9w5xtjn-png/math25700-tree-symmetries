@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Symmetries of a Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+<style>
+/* One-screen lecture demo, companion to the cube, dodecahedron, octahedron and Fano pages (MATH 25700, Lectures 16 and 19).
+   Three columns: text and controls, the tree, and the readout. The tree is drawn in SVG; every vertex that is not a leaf is a
+   button that turns the part of the tree below it. */
+:root {
+  --bg: #EFEEEC;
+  --surface: #FAFAF9;
+  --stage: #FCFBFA;
+  --ink: #1C1919;
+  --muted: #615B5A;
+  --rule: #D3CFCC;
+  --edge: #8F8784;
+  --accent: #800000;
+  --accent-text: #800000;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #F4E7E5;
+  --leaf-l: 86%;
+  --leaf-s: 38%;
+  --font-math: "STIX Two Text", "STIX Two Math", "Times New Roman", Times, serif;
+  --font-ui: "Source Sans 3", "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131111; --surface: #1D1A19; --stage: #191615;
+    --ink: #ECE8E5; --muted: #A59E9A; --rule: #37302E; --edge: #7A716E;
+    --accent: #8E1B1B; --accent-text: #E39A9A; --accent-ink: #FFFFFF; --accent-soft: #3A1E1E;
+    --leaf-l: 30%; --leaf-s: 62%;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131111; --surface: #1D1A19; --stage: #191615;
+  --ink: #ECE8E5; --muted: #A59E9A; --rule: #37302E; --edge: #7A716E;
+  --accent: #8E1B1B; --accent-text: #E39A9A; --accent-ink: #FFFFFF; --accent-soft: #3A1E1E;
+  --leaf-l: 30%; --leaf-s: 62%;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.4;
+}
+i, .math { font-family: var(--font-math); }
+sub, sup { font-size: 0.72em; line-height: 0; }
+.nw { white-space: nowrap; }
+
+.app {
+  height: 100%;
+  max-width: 1680px;
+  margin-inline: auto;
+  padding-inline: 16px;
+  padding-block: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
+.title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 16px; min-width: 0; }
+h1 {
+  margin: 0;
+  font-family: var(--font-math);
+  font-weight: 600;
+  font-size: clamp(1.45rem, 2.2vw, 2rem);
+  line-height: 1.1;
+  color: var(--accent-text);
+}
+.subtitle { margin: 0; font-family: var(--font-math); font-style: italic; font-size: 1.05rem; color: var(--muted); }
+.top-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.btn, .seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.5em 0.75em;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 600 0.92rem/1 var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.btn:hover, .seg button:hover { border-color: var(--muted); }
+.btn:disabled { opacity: 0.45; cursor: default; border-color: var(--rule); }
+.btn:focus-visible, .seg button:focus-visible, .chk input:focus-visible { outline: 3px solid var(--accent-text); outline-offset: 2px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.seg { display: inline-flex; flex-wrap: wrap; }
+.seg button { border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 8px 8px 0; }
+.seg button[aria-checked="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); position: relative; }
+.seg.small button { padding: 0.42em 0.62em; font-size: 0.86rem; }
+kbd {
+  padding: 0.1em 0.36em;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font: 600 0.7rem/1.2 var(--font-ui);
+  opacity: 0.6;
+}
+
+main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(300px, 350px);
+  grid-template-areas: "side stage read";
+  gap: 16px;
+}
+.side { grid-area: side; }
+.stage { grid-area: stage; }
+.read { grid-area: read; }
+.side, .read { display: flex; flex-direction: column; gap: 10px; min-height: 0; min-width: 0; overflow-y: auto; padding-right: 2px; }
+.side > p { margin: 0; font-size: 1rem; line-height: 1.45; }
+.side b, .read b { color: var(--accent-text); }
+.ask { font-family: var(--font-math); font-style: italic; font-size: 1.06rem; }
+.eyebrow { margin: 0; font: 600 0.75rem var(--font-ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+.eyebrow i { text-transform: none; font-size: 1.15em; letter-spacing: 0; }
+.card { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); }
+.cardtext { margin: 0; font-size: 0.93rem; line-height: 1.42; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chk { display: inline-flex; align-items: center; gap: 0.45em; font-size: 0.93rem; cursor: pointer; }
+.chk input { width: 1.05em; height: 1.05em; accent-color: var(--accent); }
+
+.stage { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+.board {
+  flex: 1 1 0;
+  min-height: 0;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--stage);
+  display: flex;
+}
+#tree { flex: 1; width: 100%; height: 100%; min-height: 0; display: block; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.info {
+  min-height: 4.4em;
+  padding: 7px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.info p { margin: 0; }
+
+/* The tree */
+.edge { stroke: var(--edge); stroke-width: 2.4; stroke-linecap: round; }
+.edge.moving, .edge.hot { stroke: var(--accent-text); stroke-width: 3.2; }
+.node { fill: var(--ink); }
+.node.moving, .node.hot { fill: var(--accent-text); }
+.leaf circle { fill: hsl(var(--h) 62% var(--leaf-l)); stroke: hsl(var(--h) 45% var(--leaf-s)); stroke-width: 1.6; }
+.leaf.moving circle, .leaf.hot circle { stroke: var(--accent-text); stroke-width: 2.6; }
+.leaf text { fill: var(--ink); font: 700 15px var(--font-ui); text-anchor: middle; dominant-baseline: central; }
+.pos { fill: var(--muted); font: 600 12px var(--font-ui); text-anchor: middle; }
+.addr { fill: var(--muted); font: italic 12px var(--font-math); text-anchor: middle; }
+.vaddr { fill: var(--muted); font: italic 12px var(--font-math); text-anchor: start; }
+.hit { fill: transparent; stroke: none; cursor: pointer; outline: none; }
+.hit:hover + .ring, .hit:focus-visible + .ring { stroke: var(--accent-text); }
+.ring { fill: none; stroke: transparent; stroke-width: 2.5; pointer-events: none; }
+.hit:focus-visible + .ring { stroke-dasharray: 4 3; }
+
+/* The readout */
+.gline { margin: 0; font-family: var(--font-math); font-size: 1.12rem; line-height: 1.5; word-break: normal; }
+.gline .cyc { white-space: nowrap; }
+.facts { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; font-size: 0.95rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+#recipe { width: 100%; height: auto; display: block; }
+.rnode { fill: var(--surface); stroke: var(--edge); stroke-width: 1.4; }
+.rnode.on { fill: var(--accent-soft); stroke: var(--accent-text); stroke-width: 2; }
+.rtext { fill: var(--ink); font: 700 12px var(--font-ui); text-anchor: middle; dominant-baseline: central; }
+.redge { stroke: var(--rule); stroke-width: 1.6; }
+.rleaf { fill: var(--edge); }
+
+@media (max-width: 1180px) {
+  main { grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); grid-template-areas: "stage stage" "side read"; }
+  .app { height: auto; min-height: 100%; }
+  .board { flex: none; height: min(62vh, 520px); }
+  .side, .read { overflow: visible; }
+}
+@media (max-width: 760px) {
+  main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage" "side" "read"; }
+  .board { height: min(58vh, 64vw + 60px); min-height: 220px; }
+  .app { padding-inline: 10px; }
+  .seg.modes button { padding: 0.42em 0.55em; font-size: 0.84rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="title">
+      <h1>Symmetries of a tree</h1>
+      <p class="subtitle">Sylow subgroups of symmetric groups</p>
+    </div>
+    <div class="top-actions">
+      <div class="seg modes" id="modes" role="radiogroup" aria-label="Tree">
+        <button type="button" role="radio" data-mode="4" aria-checked="false">4 leaves</button>
+        <button type="button" role="radio" data-mode="8" aria-checked="true">8 leaves</button>
+        <button type="button" role="radio" data-mode="16" aria-checked="false">16 leaves</button>
+        <button type="button" role="radio" data-mode="9" aria-checked="false">9 leaves, <i>p</i> = 3</button>
+      </div>
+      <button class="btn" id="btn-theme" type="button" aria-label="Switch between light and dark">Dark</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="side" aria-label="Moves">
+      <p id="intro"></p>
+      <p class="ask">Click a vertex to turn the part of the tree below it.</p>
+      <section class="card">
+        <p class="eyebrow">The turn</p>
+        <div class="seg small" id="turns" role="radiogroup" aria-label="Kind of turn">
+          <button type="button" role="radio" data-turn="half" aria-checked="true">Half-turn</button>
+          <button type="button" role="radio" data-turn="swap" aria-checked="false">Swap</button>
+          <button type="button" role="radio" data-turn="rot" aria-checked="false" hidden>Rotate</button>
+        </div>
+        <p class="cardtext" id="turntext"></p>
+      </section>
+      <div class="btnrow">
+        <button class="btn" id="btn-undo" type="button">Undo <kbd>Z</kbd></button>
+        <button class="btn" id="btn-reset" type="button">Reset <kbd>R</kbd></button>
+        <button class="btn primary" id="btn-random" type="button">Random <kbd>S</kbd></button>
+      </div>
+      <div class="btnrow">
+        <label class="chk"><input type="checkbox" id="chk-addr"> Show addresses <kbd>A</kbd></label>
+      </div>
+      <div class="btnrow">
+        <span class="eyebrow">Speed</span>
+        <div class="seg small" id="speeds" role="radiogroup" aria-label="Speed">
+          <button type="button" role="radio" data-speed="slow" aria-checked="false">Slow</button>
+          <button type="button" role="radio" data-speed="normal" aria-checked="true">Normal</button>
+          <button type="button" role="radio" data-speed="fast" aria-checked="false">Fast</button>
+        </div>
+      </div>
+      <section class="card" id="groupcard">
+        <p class="eyebrow">The group</p>
+        <p class="cardtext" id="g-order"></p>
+        <p class="cardtext" id="g-sylow"></p>
+        <p class="cardtext" id="g-struct"></p>
+      </section>
+    </section>
+
+    <section class="stage" aria-label="The tree">
+      <div class="board"><svg id="tree" role="group" aria-label="The tree"></svg></div>
+      <div class="info" id="msg" aria-live="polite"></div>
+    </section>
+
+    <section class="read" aria-label="Readout">
+      <section class="card">
+        <p class="eyebrow">The symmetry <i>g</i> (label <i>i</i> is at position <i>g</i>(<i>i</i>))</p>
+        <p class="gline"><i>g</i> = <span id="ro-g"></span></p>
+        <dl class="facts">
+          <dt>Order</dt><dd id="ro-order"></dd>
+          <dt>Moves</dt><dd id="ro-moves"></dd>
+          <dt>Top</dt><dd id="ro-top"></dd>
+        </dl>
+      </section>
+      <section class="card">
+        <p class="eyebrow">The recipe <i>c</i></p>
+        <svg id="recipe" role="img" aria-label="The numbers c(w)"></svg>
+        <p class="cardtext" id="recipetext"></p>
+      </section>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const NS = "http://www.w3.org/2000/svg";
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  // ===================== The model =====================
+  // Leaves are positions 0..N-1 (shown as 1..N). The vertex (k, j) at level k is the prefix of length k given by the
+  // base-p digits of j; its children are (k+1, pj), ..., (k+1, pj + p - 1), and the leaves below it are the positions
+  // j p^(r-k), ..., (j+1) p^(r-k) - 1. So position x has address = the r digits of x, most significant first.
+  const MODES = {
+    "4": { key: "4", p: 2, r: 2, sp: 92, gap: 104 },
+    "8": { key: "8", p: 2, r: 3, sp: 66, gap: 92 },
+    "16": { key: "16", p: 2, r: 4, sp: 42, gap: 78 },
+    "9": { key: "9", p: 3, r: 2, sp: 60, gap: 124 },
+  };
+  const DUR = { slow: 1000, normal: 600, fast: 320 };
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const M = { mode: MODES["8"], p: 2, r: 3, N: 8, g: [], moves: 0, hist: [], turn: "half", addr: false, speed: "normal", hot: null, lastRandom: null };
+  const A = { shown: [], shownMoves: 0, queue: [], cur: null, t: 0, raf: 0, last: 0, manual: false };
+
+  const pw = (k) => M.p ** k;
+  const digits = (k, j) => { const d = []; for (let i = 0; i < k; i++) { d.unshift(j % M.p); j = Math.floor(j / M.p); } return d; };
+  const addrOf = (k, j) => digits(k, j).join("");
+  const vname = (k, j) => (k === 0 ? "the root" : "vertex " + addrOf(k, j));
+  const identity = () => Array.from({ length: M.N }, (_, i) => i);
+
+  // The generator at the vertex (k, j), as a permutation of the positions.
+  //   "half": the mirror image of the subtree below the vertex (binary trees only);
+  //   "swap"/"rot": the translation w d x -> w (d + 1 mod p) x, each branch sliding one place to the right.
+  function rho(k, j, type) {
+    const B = pw(M.r - k), b = B / M.p, out = [];
+    for (let x = 0; x < M.N; x++) {
+      if (Math.floor(x / B) !== j) { out.push(x); continue; }
+      const off = x - j * B;
+      if (type === "half") out.push(j * B + (B - 1 - off));
+      else { const d = Math.floor(off / b), y = off % b; out.push(j * B + ((d + 1) % M.p) * b + y); }
+    }
+    return out;
+  }
+  const after = (s, g) => g.map((x) => s[x]);            // s ∘ g
+  const sameP = (a, b) => a.every((x, i) => x === b[i]);
+  function cycles(g) {
+    const seen = new Array(g.length).fill(false), out = [];
+    for (let i = 0; i < g.length; i++) {
+      if (seen[i]) continue;
+      const c = [];
+      for (let x = i; !seen[x]; x = g[x]) { seen[x] = true; c.push(x + 1); }
+      out.push(c);
+    }
+    return out;
+  }
+  const cycText = (g) => { const cs = cycles(g).filter((c) => c.length > 1); return cs.length ? cs.map((c) => "(" + c.join(" ") + ")").join("") : "1"; };
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const orderOf = (g) => cycles(g).reduce((a, c) => (a * c.length) / gcd(a, c.length), 1);
+  // c(w) for the internal vertex w = (k, j): g carries the children w0, ..., w(p-1) of w to the children of g(w),
+  // turned by c(w): g(wd) = g(w)(d + c(w)). Read it off the leftmost leaf below w, which lies below w0.
+  const recipe = (g, k, j) => Math.floor(g[j * pw(M.r - k)] / pw(M.r - k - 1)) % M.p;
+  const typeNow = () => (M.p === 2 ? M.turn : "rot");
+
+  // The order of S_N, its p-part, and the number of internal vertices.
+  function factorial(n) { let f = 1n; for (let i = 2n; i <= BigInt(n); i++) f *= i; return f; }
+  function sylowData() {
+    const f = factorial(M.N), P = BigInt(M.p);
+    let v = 0, m = f;
+    while (m % P === 0n) { m /= P; v++; }
+    const levels = Array.from({ length: M.r }, (_, k) => pw(k));
+    return { f, v, m, levels, order: P ** BigInt(v) };
+  }
+  const fmt = (n) => n.toLocaleString("en-US");
+
+  // ===================== Geometry =====================
+  const G = {};
+  function geometry() {
+    const { sp, gap } = M.mode;
+    G.sp = sp; G.gap = gap;
+    G.padX = 26; G.top = 34;
+    G.leafR = Math.min(17, sp * 0.37);
+    G.nodeR = 7;
+    G.leafY = G.top + M.r * gap;
+    G.posY = G.leafY + G.leafR + 17;
+    G.addrY = G.posY + 16;
+    G.W = M.N * sp + 2 * G.padX;
+    G.H = G.addrY + 10;
+  }
+  const X = (k, j) => { const span = pw(M.r - k); return G.padX + (j * span + span / 2) * G.sp; };
+  const Y = (k) => G.top + k * G.gap;
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const under = (k, j, mv) => k > mv.k && Math.floor(j / pw(k - mv.k)) === mv.j;
+
+  // Where the object that starts the move at slot (k, j) is at the fraction t of the move: {x, y, z}, z = depth
+  // (positive = toward the viewer, 0 at rest).
+  function objPos(k, j, mv, t) {
+    let x = X(k, j), y = Y(k), z = 0;
+    if (!mv || !under(k, j, mv)) return { x, y, z };
+    const xw = X(mv.k, mv.j);
+    if (mv.type === "half") {
+      // A spin about the vertical axis through the vertex: x' = x_w + dx cos(πt).
+      const halfW = (pw(M.r - mv.k) * G.sp) / 2, dx = x - xw;
+      x = xw + dx * Math.cos(Math.PI * t);
+      z = (-dx * Math.sin(Math.PI * t)) / halfW;
+    } else {
+      // A carousel: the children sit on a circle about the vertical axis, seen from the front, and each branch
+      // slides (without turning) to the next place; the branch that wraps around passes behind.
+      const p = M.p, step = (2 * Math.PI) / p, th = (i) => (i - (p - 1) / 2) * step;
+      const d = Math.floor(j / pw(k - mv.k - 1)) % p;
+      const xc = (i) => X(mv.k + 1, mv.j * p + i);
+      const R = (xc(p - 1) - xw) / Math.sin(th(p - 1));
+      const phi = th(d) + step * t;
+      x += xw + R * Math.sin(phi) - xc(d);
+      z = Math.cos(phi) - (Math.cos(th(d)) * (1 - t) + Math.cos(th(d) + step) * t);
+    }
+    y += z * 0.16 * G.gap;
+    return { x, y, z };
+  }
+  const scaleOf = (z) => 1 + 0.18 * z;
+  const opOf = (z) => (z < 0 ? Math.max(0.42, 1 + 0.65 * z) : 1);
+
+  // ===================== Drawing =====================
+  const S = { svg: $("tree"), edges: [], nodes: [], leaves: [], hits: [], rings: [], pos: [], addr: [], vaddr: [] };
+  function build() {
+    geometry();
+    const svg = S.svg;
+    svg.textContent = "";
+    svg.setAttribute("viewBox", `0 0 ${G.W} ${G.H}`);
+    const gE = mk("g", { class: "edges" }, svg), gN = mk("g", { class: "nodes" }, svg), gS = mk("g", { class: "static" }, svg);
+    const gL = mk("g", { class: "leaves" }, svg), gH = mk("g", { class: "hits" }, svg);
+    S.edges = []; S.nodes = []; S.leaves = []; S.hits = []; S.rings = []; S.pos = []; S.addr = []; S.vaddr = [];
+    for (let k = 0; k <= M.r; k++) {
+      S.edges[k] = []; S.nodes[k] = []; S.hits[k] = []; S.rings[k] = []; S.vaddr[k] = [];
+      for (let j = 0; j < pw(k); j++) {
+        if (k > 0) S.edges[k][j] = mk("line", { class: "edge", "data-k": k, "data-j": j }, gE);
+        if (k < M.r) {
+          S.nodes[k][j] = mk("circle", { class: "node", r: G.nodeR, "data-k": k, "data-j": j }, gN);
+          const va = mk("text", { class: "vaddr", x: X(k, j) + 11, y: Y(k) - 9 }, gS);
+          va.textContent = k === 0 ? "∅" : addrOf(k, j);
+          S.vaddr[k][j] = va;
+          const hit = mk("circle", { class: "hit", cx: X(k, j), cy: Y(k), r: Math.min(24, G.sp * 0.5 * pw(M.r - k) - 2), tabindex: 0, role: "button", "aria-label": "Turn the tree below " + vname(k, j), "data-k": k, "data-j": j }, gH);
+          const ring = mk("circle", { class: "ring", cx: X(k, j), cy: Y(k), r: G.nodeR + 6 }, gH);
+          hit.addEventListener("click", (e) => { e.preventDefault(); turnAt(k, j); });
+          hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); turnAt(k, j); } });
+          hit.addEventListener("pointerenter", () => setHot(k, j));
+          hit.addEventListener("pointerleave", () => setHot(null));
+          hit.addEventListener("focus", () => setHot(k, j));
+          hit.addEventListener("blur", () => setHot(null));
+          S.hits[k][j] = hit; S.rings[k][j] = ring;
+        }
+      }
+    }
+    for (let x = 0; x < M.N; x++) {
+      const t = mk("text", { class: "pos", x: X(M.r, x), y: G.posY, "data-pos": x + 1 }, gS);
+      t.textContent = x + 1;
+      S.pos.push(t);
+      const a = mk("text", { class: "addr", x: X(M.r, x), y: G.addrY, "data-pos": x + 1 }, gS);
+      a.textContent = addrOf(M.r, x);
+      S.addr.push(a);
+    }
+    for (let i = 0; i < M.N; i++) {
+      const g = mk("g", { class: "leaf", "data-label": i + 1 }, gL);
+      const c = mk("circle", { r: G.leafR, cx: 0, cy: 0 }, g);
+      c.style.setProperty("--h", String(Math.round((i * 300) / M.N + 10)));
+      const t = mk("text", { x: 0, y: 0 }, g);
+      t.textContent = i + 1;
+      if (M.N > 9) t.style.fontSize = "14px";
+      S.leaves.push(g);
+    }
+    buildRecipe();
+    showAddr();
+    render();
+  }
+  function showAddr() {
+    for (const a of S.addr) a.style.display = M.addr ? "" : "none";
+    for (const row of S.vaddr) for (const a of row) if (a) a.style.display = M.addr ? "" : "none";
+    $("chk-addr").checked = M.addr;
+  }
+  function setHot(k, j) { M.hot = k === null ? null : { k, j }; render(); }
+
+  function render() {
+    const mv = A.cur, t = mv ? ease(mv.dur ? Math.min(1, A.t / mv.dur) : 1) : 0;
+    const P = [];
+    for (let k = 0; k <= M.r; k++) { P[k] = []; for (let j = 0; j < pw(k); j++) P[k][j] = objPos(k, j, mv, t); }
+    const hot = !mv && M.hot ? { k: M.hot.k, j: M.hot.j } : null;
+    const inMv = (k, j) => !!mv && under(k, j, mv), inHot = (k, j) => !!hot && under(k, j, hot);
+    for (let k = 1; k <= M.r; k++) for (let j = 0; j < pw(k); j++) {
+      const a = P[k - 1][Math.floor(j / M.p)], b = P[k][j], e = S.edges[k][j];
+      e.setAttribute("x1", a.x.toFixed(2)); e.setAttribute("y1", a.y.toFixed(2));
+      e.setAttribute("x2", b.x.toFixed(2)); e.setAttribute("y2", b.y.toFixed(2));
+      e.setAttribute("opacity", opOf(Math.min(a.z, b.z)).toFixed(3));
+      e.classList.toggle("moving", inMv(k, j));
+      e.classList.toggle("hot", inHot(k, j));
+    }
+    for (let k = 0; k < M.r; k++) for (let j = 0; j < pw(k); j++) {
+      const q = P[k][j], n = S.nodes[k][j];
+      n.setAttribute("cx", q.x.toFixed(2)); n.setAttribute("cy", q.y.toFixed(2));
+      n.setAttribute("r", (G.nodeR * scaleOf(q.z)).toFixed(2));
+      n.setAttribute("opacity", opOf(q.z).toFixed(3));
+      n.classList.toggle("moving", inMv(k, j) || (!!mv && k === mv.k && j === mv.j));
+      n.classList.toggle("hot", inHot(k, j) || (!!hot && k === hot.k && j === hot.j));
+    }
+    const order = [];
+    for (let i = 0; i < M.N; i++) {
+      const slot = A.shown[i], q = P[M.r][slot], L = S.leaves[i];
+      L.setAttribute("transform", `translate(${q.x.toFixed(2)} ${q.y.toFixed(2)}) scale(${scaleOf(q.z).toFixed(3)})`);
+      L.setAttribute("opacity", opOf(q.z).toFixed(3));
+      L.classList.toggle("moving", inMv(M.r, slot));
+      L.classList.toggle("hot", inHot(M.r, slot));
+      order.push([q.z, L]);
+    }
+    if (mv) {
+      order.sort((a, b) => a[0] - b[0]);
+      const parent = S.leaves[0].parentNode;
+      for (const [, L] of order) if (parent.lastChild !== L) parent.appendChild(L);
+    }
+  }
+
+  // ===================== Readout =====================
+  const R = { svg: $("recipe"), nodes: [], texts: [] };
+  function buildRecipe() {
+    const svg = R.svg, sp = Math.max(17, Math.min(40, 300 / M.N)), gap = M.p === 3 ? 46 : 36, pad = 14, top = 14;
+    const W = M.N * sp + 2 * pad, H = top + M.r * gap + 8;
+    const x = (k, j) => { const span = pw(M.r - k); return pad + (j * span + span / 2) * sp; };
+    const y = (k) => top + k * gap;
+    svg.textContent = "";
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.style.maxHeight = (H * 1.25) + "px";
+    for (let k = 1; k <= M.r; k++) for (let j = 0; j < pw(k); j++) mk("line", { class: "redge", x1: x(k - 1, Math.floor(j / M.p)), y1: y(k - 1), x2: x(k, j), y2: y(k) }, svg);
+    for (let j = 0; j < M.N; j++) mk("circle", { class: "rleaf", cx: x(M.r, j), cy: y(M.r), r: 2.6 }, svg);
+    R.nodes = []; R.texts = [];
+    for (let k = 0; k < M.r; k++) {
+      R.nodes[k] = []; R.texts[k] = [];
+      for (let j = 0; j < pw(k); j++) {
+        R.nodes[k][j] = mk("circle", { class: "rnode", cx: x(k, j), cy: y(k), r: 9.5, "data-k": k, "data-j": j }, svg);
+        R.texts[k][j] = mk("text", { class: "rtext", x: x(k, j), y: y(k) }, svg);
+      }
+    }
+  }
+  function readout() {
+    const g = A.shown;
+    const cs = cycles(g).filter((c) => c.length > 1);
+    const ro = $("ro-g");
+    ro.textContent = "";
+    if (!cs.length) ro.textContent = "1";
+    for (const c of cs) { const s = document.createElement("span"); s.className = "cyc"; s.textContent = "(" + c.join(" ") + ")"; ro.appendChild(s); ro.appendChild(document.createTextNode("​")); }
+    $("ro-order").textContent = String(orderOf(g));
+    $("ro-moves").textContent = String(A.shownMoves);
+    const c0 = recipe(g, 0, 0);
+    $("ro-top").textContent = M.p === 2
+      ? (c0 ? "g swaps the two halves of the tree" : "g keeps each half of the tree in place")
+      : (c0 ? `g turns the three top branches by ${c0} place${c0 > 1 ? "s" : ""}` : "g keeps each top branch in place");
+    for (let k = 0; k < M.r; k++) for (let j = 0; j < pw(k); j++) {
+      const c = recipe(g, k, j);
+      R.nodes[k][j].classList.toggle("on", c !== 0);
+      R.nodes[k][j].setAttribute("data-c", c);
+      R.texts[k][j].textContent = c;
+    }
+    $("btn-undo").disabled = !M.hist.length;
+  }
+
+  function texts() {
+    const { p, r, N } = M, sd = sylowData(), Pn = p === 2 ? "2" : "3";
+    const lv = sd.levels.join(" + ");
+    $("intro").innerHTML = p === 2
+      ? `A <b>symmetry</b> of the tree is a permutation of its vertices that keeps the edges and fixes the root. It is determined by what it does to the ${N} leaves, so it is a permutation of the leaves: an element of <i>S</i><sub>${N}</sub>.`
+      : `Here a move <b>rotates</b> the three branches below a vertex. A product of moves permutes the ${N} leaves: it is an element of <i>S</i><sub>9</sub>.`;
+    $("g-order").innerHTML = `The moves generate a group <i>P</i> of order ${Pn}<sup>${sd.v}</sup> = ${fmt(sd.order)}: one <i>c</i>(<i>w</i>) in ℤ/${p} for each of the ${sd.v} = ${lv} vertices that are not leaves.`;
+    $("g-sylow").innerHTML = `${N}! = ${fmt(sd.f)} = ${Pn}<sup>${sd.v}</sup> · ${fmt(sd.m)}, and ${p} does not divide ${fmt(sd.m)}. So <i>P</i> is a <b>Sylow ${p}-subgroup</b> of <i>S</i><sub>${N}</sub>.`;
+    $("g-struct").innerHTML = p === 3
+      ? `<i>P</i> ≅ <i>C</i><sub>3</sub> ≀ <i>C</i><sub>3</sub>. It is not every symmetry of the tree: swapping just two branches is not allowed.`
+      : r === 2
+        ? `<i>P</i> = Aut(<i>T</i><sub>2</sub>) ≅ <i>C</i><sub>2</sub> ≀ <i>C</i><sub>2</sub> ≅ <i>D</i><sub>8</sub> (Lecture 16, Example 3.3).`
+        : `<i>P</i> = Aut(<i>T</i><sub>${r}</sub>) ≅ Aut(<i>T</i><sub>${r - 1}</sub>) ≀ <i>C</i><sub>2</sub> (Lecture 16, Proposition 3.2).`;
+    $("recipetext").innerHTML = `<i>c</i>(<i>w</i>) = how far <i>g</i> turns the branches below <i>w</i>: <i>g</i>(<i>wd</i>) = <i>g</i>(<i>w</i>)(<i>d</i> + <i>c</i>(<i>w</i>)). So <i>g</i> sends the leaf <i>a</i><sub>1</sub>⋯<i>a</i><sub>${r}</sub> to the leaf with digits <i>a</i><sub><i>k</i></sub> + <i>c</i>(<i>a</i><sub>1</sub>⋯<i>a</i><sub><i>k</i>−1</sub>). These ${sd.v} numbers determine <i>g</i>, and every choice occurs, so |<i>P</i>| = ${p}<sup>${sd.v}</sup>.`;
+    turnTexts();
+  }
+  function turnTexts() {
+    for (const b of $("turns").querySelectorAll("button")) {
+      const t = b.dataset.turn;
+      b.hidden = M.p === 2 ? t === "rot" : t !== "rot";
+      b.setAttribute("aria-checked", String(t === typeNow()));
+    }
+    const t = typeNow();
+    $("turntext").innerHTML = t === "half"
+      ? "<b>Half-turn</b>: spin the branch below the vertex by half a turn, like a mobile. It comes back as its mirror image."
+      : t === "swap"
+        ? "<b>Swap</b>: slide the two branches below the vertex past each other. Each keeps its own order."
+        : "<b>Rotate</b>: the three branches below the vertex each move one place to the right, and the last goes around the back to the first place.";
+  }
+  function say(html) { $("msg").innerHTML = "<p>" + html + "</p>"; }
+  const LEGEND = "The numbers in the discs are <b>labels</b>; the small numbers under them are <b>positions</b>. A symmetry <i>g</i> puts label <i>i</i> at position <i>g</i>(<i>i</i>), and moves compose right to left.";
+
+  // ===================== Moves and the animation queue =====================
+  const durNow = (f) => (reduceMotion.matches ? 0 : Math.round(DUR[M.speed] * (f || 1)));
+  function makeMove(k, j, type, f) { return { k, j, type, perm: rho(k, j, type), dur: durNow(f) }; }
+  function enqueue(moves) {
+    for (const mv of moves) { M.g = after(mv.perm, M.g); M.moves++; }
+    A.queue.push(...moves);
+    kick();
+  }
+  function advance(dt) {
+    for (;;) {
+      if (!A.cur) { if (!A.queue.length) break; A.cur = A.queue.shift(); A.t = 0; }
+      const need = A.cur.dur - A.t;
+      if (dt >= need) { dt -= need; A.shown = after(A.cur.perm, A.shown); A.shownMoves++; A.cur = null; readout(); }
+      else { A.t += dt; break; }
+    }
+    render();
+  }
+  function frame(now) {
+    A.raf = 0;
+    const dt = Math.min(now - A.last, 80);
+    A.last = now;
+    if (!A.manual) advance(dt);
+    if (A.cur || A.queue.length) A.raf = requestAnimationFrame(frame);
+  }
+  function kick() {
+    advance(0);
+    if (!A.raf && (A.cur || A.queue.length)) { A.last = performance.now(); A.raf = requestAnimationFrame(frame); }
+  }
+  function finish() { advance(Infinity); }
+  function jumpTo(g, moves) {
+    A.queue = []; A.cur = null;
+    M.g = g.slice(); M.moves = moves;
+    A.shown = g.slice(); A.shownMoves = moves;
+    readout(); render();
+  }
+
+  function turnAt(k, j) {
+    const type = typeNow();
+    M.hist.push({ g: M.g.slice(), moves: M.moves });
+    const mv = makeMove(k, j, type);
+    const kind = type === "half" ? "Half-turn" : type === "swap" ? "Swap" : "Rotation";
+    say(`${kind} at ${vname(k, j)}: ρ = ${cycText(mv.perm)} on the positions. The new <i>g</i> is ρ∘<i>g</i>.`);
+    enqueue([mv]);
+  }
+  function randomMove() {
+    // A random element h = g_c of P, built as one turn by c(w) places at each vertex w, deepest level first and the
+    // root last: g_c = T_0 ∘ T_1 ∘ ... ∘ T_(r-1), where T_k turns every vertex at level k.
+    M.hist.push({ g: M.g.slice(), moves: M.moves });
+    const seq = [], c = [];
+    for (let k = 0; k < M.r; k++) { c[k] = []; for (let j = 0; j < pw(k); j++) c[k][j] = Math.floor(Math.random() * M.p); }
+    if (c.every((row) => row.every((x) => x === 0))) c[M.r - 1][0] = 1;   // never a do-nothing Random
+    const type = M.p === 2 ? "swap" : "rot";
+    for (let k = M.r - 1; k >= 0; k--) for (let j = 0; j < pw(k); j++) for (let s = 0; s < c[k][j]; s++) seq.push(makeMove(k, j, type, 0.6));
+    M.lastRandom = { c, seq: seq.map((m) => [m.k, m.j, m.type]) };
+    say(`A random symmetry <i>h</i>, built from at most one ${M.p === 2 ? "swap" : "turn"} at each vertex, deepest first (${seq.length} move${seq.length === 1 ? "" : "s"}).${M.p === 2 && M.turn === "half" ? " Random always uses swaps." : ""} The new <i>g</i> is <i>h</i>∘<i>g</i>.`);
+    enqueue(seq);
+  }
+  function undo() {
+    if (!M.hist.length) return;
+    const h = M.hist.pop();
+    jumpTo(h.g, h.moves);
+    say("Undone.");
+  }
+  function reset() {
+    const id = identity();
+    if (sameP(M.g, id) && M.moves === 0 && !A.cur && !A.queue.length) return;
+    M.hist.push({ g: M.g.slice(), moves: M.moves });
+    jumpTo(id, 0);
+    say("Reset to the identity. " + LEGEND);
+  }
+  function setMode(key, quiet) {
+    const m = MODES[key];
+    if (!m) return;
+    M.mode = m; M.p = m.p; M.r = m.r; M.N = m.p ** m.r;
+    M.hist = []; M.hot = null; M.lastRandom = null;
+    A.queue = []; A.cur = null;
+    M.g = identity(); M.moves = 0; A.shown = identity(); A.shownMoves = 0;
+    for (const b of $("modes").querySelectorAll("button")) b.setAttribute("aria-checked", String(b.dataset.mode === key));
+    build();
+    texts();
+    readout();
+    say(LEGEND);
+    if (!quiet && history.replaceState) history.replaceState(null, "", "#" + key);
+  }
+  function setTurn(t) {
+    if (M.p !== 2 || (t !== "half" && t !== "swap")) return;
+    M.turn = t;
+    turnTexts();
+  }
+
+  // ===================== Controls =====================
+  $("modes").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setMode(b.dataset.mode); });
+  $("turns").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setTurn(b.dataset.turn); });
+  $("speeds").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    M.speed = b.dataset.speed;
+    for (const x of $("speeds").querySelectorAll("button")) x.setAttribute("aria-checked", String(x === b));
+  });
+  $("btn-undo").addEventListener("click", undo);
+  $("btn-reset").addEventListener("click", reset);
+  $("btn-random").addEventListener("click", randomMove);
+  $("chk-addr").addEventListener("change", (e) => { M.addr = e.target.checked; showAddr(); });
+  function effectiveDark() {
+    const t = document.documentElement.dataset.theme;
+    return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function themeLabel() { $("btn-theme").textContent = effectiveDark() ? "Light" : "Dark"; }
+  $("btn-theme").addEventListener("click", () => { document.documentElement.dataset.theme = effectiveDark() ? "light" : "dark"; themeLabel(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === "z") undo();
+    else if (k === "r") reset();
+    else if (k === "s") randomMove();
+    else if (k === "a") { M.addr = !M.addr; showAddr(); }
+    else if (k === "t") setTurn(M.turn === "half" ? "swap" : "half");
+    else if (k === "1") setMode("4");
+    else if (k === "2") setMode("8");
+    else if (k === "3") setMode("16");
+    else if (k === "4") setMode("9");
+    else return;
+    e.preventDefault();
+  });
+
+  const start = (location.hash || "").slice(1);
+  setMode(MODES[start] ? start : "8", true);
+  themeLabel();
+
+  // Hooks for the browser tests.
+  window.__tree = {
+    state: () => ({ p: M.p, r: M.r, N: M.N, g: M.g.slice(), shown: A.shown.slice(), moves: M.moves, shownMoves: A.shownMoves, busy: !!(A.cur || A.queue.length), turn: typeNow(), hist: M.hist.length }),
+    rho: (k, j, type) => rho(k, j, type || typeNow()),
+    tick: (ms) => advance(ms),
+    finish,
+    manual: (on) => { A.manual = !!on; },
+    lastRandom: () => M.lastRandom,
+    current: () => (A.cur ? { k: A.cur.k, j: A.cur.j, type: A.cur.type, t: A.t, dur: A.cur.dur } : null),
+    geom: () => ({ ...G }),
+  };
+})();
+</script>
+</body>
+</html>
